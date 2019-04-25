@@ -21,6 +21,7 @@ import io.swagger.models.Swagger;
 import io.swagger.parser.SwaggerParser;
 import io.swagger.parser.util.SwaggerDeserializationResult;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.parser.OpenAPIV3Parser;
 import io.swagger.v3.parser.converter.SwaggerConverter;
 import io.swagger.v3.parser.core.models.ParseOptions;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
@@ -53,10 +54,17 @@ public class Loader {
     Swagger swagger = new SwaggerParser().read(resource);
 
     if (swagger == null) {
-      throw new NullPointerException(
+      OpenAPI openAPI = new OpenAPIV3Parser().read(resource);
+      
+      if (openAPI == null) {
+        throw new NullPointerException(
           String.format(
               "The OpenAPI specification contained in %s is ill formed and cannot be parsed",
               resource));
+      } else {
+        return openAPI;
+      }
+
     } else {      
       validateSpecification(swagger, resource);
 

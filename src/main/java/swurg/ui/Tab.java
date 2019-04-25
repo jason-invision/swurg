@@ -23,13 +23,12 @@ import burp.HttpRequestResponse;
 import burp.IBurpExtenderCallbacks;
 import burp.ITab;
 import com.google.common.base.Strings;
-import io.swagger.models.HttpMethod;
-import io.swagger.models.Operation;
-import io.swagger.models.Path;
-import io.swagger.models.Scheme;
-import io.swagger.models.Swagger;
-import io.swagger.models.parameters.Parameter;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.PathItem.HttpMethod;
+import io.swagger.v3.oas.models.parameters.Parameter;
+import io.swagger.v3.oas.models.servers.Server;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -42,6 +41,9 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
+import java.io.PrintWriter;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -77,11 +79,13 @@ public class Tab implements ITab {
 
   private List<HttpRequestResponse> httpRequestResponses;
 
+  private IBurpExtenderCallbacks callbacks;
+
   public Tab(IBurpExtenderCallbacks callbacks) {
     this.contextMenu = new ContextMenu(callbacks, this);
     this.extensionHelper = new ExtensionHelper(callbacks);
     this.httpRequestResponses = new ArrayList<>();
-
+    this.callbacks = callbacks;
     initUI();
   }
 
@@ -232,31 +236,54 @@ public class Tab implements ITab {
     this.statusLabel.setForeground(color);
   }
 
-  public void populateTable(OpenAPI openAPI) {
+  public void populateTable(OpenAPI openAPI) throws MalformedURLException {
     DefaultTableModel defaultTableModel = (DefaultTableModel) this.table.getModel();
-    List<Scheme> schemes = openAPI.getSchemes();
+    List<Server> servers = openAPI.getServers();
 
-    for (Scheme scheme : schemes) {
-      for (Map.Entry<String, Path> path : openAPI.getPaths().entrySet()) {
-        for (Map.Entry<HttpMethod, Operation> operation : path.getValue().getOperationMap().entrySet()) {
+    PrintWriter stdout = new PrintWriter(callbacks.getStdout(), true);
+    for (Server server : servers) {
+      
+      //stdout.println("Founder server: " + server.toString());
+      for (Map.Entry<String, PathItem> path : openAPI.getPaths().entrySet()) {
+        //stdout.println("Found path: " + path.getValue().toString());
+        for (Map.Entry<HttpMethod, Operation> operation : path.getValue().readOperationsMap().entrySet()) {
+          //stdout.println("Found operation:" + operation.getValue().toString());
           StringBuilder stringBuilder = new StringBuilder();
+
+          /*
+          stdout.println("Get parameters");
 
           for (Parameter parameter : operation.getValue().getParameters()) {
             stringBuilder.append(parameter.getName()).append(", ");
           }
+          
+          stdout.println("Parameter string built");
+          */
 
+          /*
           if (stringBuilder.length() > 0) {
             stringBuilder.setLength(stringBuilder.length() - 2);
           }
+          */
+          stdout.println("Parse URL!");
 
+          URL url = new URL(server.getUrl());
+          stdout.println("URL Parsed");
+
+          /*
           this.httpRequestResponses.add(new HttpRequestResponse(
-              this.extensionHelper.getBurpExtensionHelpers().buildHttpService(openAPI.getHost().split(":")[0],
-                  this.extensionHelper.getPort(openAPI, scheme), this.extensionHelper.isUseHttps(scheme)),
-              this.extensionHelper.isUseHttps(scheme), this.extensionHelper.buildRequest(openAPI, path, operation)));
+              this.extensionHelper.getBurpExtensionHelpers().buildHttpService(url.getHost(),
+                  url.getPort(), true),
+              true, null));
 
+
+          stdout.println("HTTP Response added!");
+          */
+          
           defaultTableModel.addRow(new Object[] { defaultTableModel.getRowCount(), operation.getKey().toString(),
-              openAPI.getHost().split(":")[0], scheme.toValue().toUpperCase(), openAPI.getBasePath(), path.getKey(),
+              url.getHost(), url.getProtocol().toUpperCase(), url.getPath(), path.getKey(),
               stringBuilder.toString() });
+          stdout.println("Row added!");
         }
       }
     }

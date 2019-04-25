@@ -4,7 +4,10 @@ import static burp.BurpExtender.COPYRIGHT;
 import static burp.BurpExtender.EXTENSION;
 
 import io.swagger.models.Swagger;
+import io.swagger.v3.oas.models.OpenAPI;
+
 import java.awt.Color;
+import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JMenuItem;
@@ -16,9 +19,7 @@ public class ContextMenuFactory implements IContextMenuFactory {
   private IBurpExtenderCallbacks callbacks;
   private Tab tab;
 
-  ContextMenuFactory(
-      IBurpExtenderCallbacks callbacks, Tab tab
-  ) {
+  ContextMenuFactory(IBurpExtenderCallbacks callbacks, Tab tab) {
     this.callbacks = callbacks;
     this.tab = tab;
   }
@@ -33,11 +34,15 @@ public class ContextMenuFactory implements IContextMenuFactory {
         String resource = requestInfo.getUrl().toString();
 
         try {
-          Swagger swagger = new Loader().process(resource);
-          this.tab.populateTable(swagger);
+          OpenAPI openAPI = new Loader().process(resource);
+          this.tab.populateTable(openAPI);
           this.tab.printStatus(COPYRIGHT, Color.BLACK);
         } catch (IllegalArgumentException | NullPointerException e1) {
-          this.tab.printStatus(e1.getMessage(), Color.RED);
+          this.tab.printStatus("Exception: " + e1.getMessage(), Color.RED);
+        } catch (MalformedURLException e1) {
+          this.tab.printStatus("Exception: " + e1.getMessage(), Color.RED);
+        } catch (Exception e1) {
+          this.tab.printStatus("Exception: " + e1.getMessage(), Color.RED);
         }
       }
     });
