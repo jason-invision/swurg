@@ -19,6 +19,8 @@ package swurg.process;
 import com.google.common.base.Strings;
 import io.swagger.models.Swagger;
 import io.swagger.parser.SwaggerParser;
+import io.swagger.v3.parser.converter.SwaggerConverter;
+
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
@@ -52,6 +54,7 @@ public class Loader {
               "The OpenAPI specification contained in %s is ill formed and cannot be parsed",
               resource));
     } else {
+      SwaggerConverter converter = new SwaggerConverter();
       validateSpecification(swagger, resource);
       return swagger;
     }
