@@ -19,6 +19,8 @@ package swurg.process;
 import com.google.common.base.Strings;
 import io.swagger.models.Swagger;
 import io.swagger.parser.SwaggerParser;
+import io.swagger.v3.parser.converter.SwaggerConverter;
+
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
@@ -53,6 +55,8 @@ public class Loader {
               resource));
     } else {
       validateSpecification(swagger, resource);
+      SwaggerConverter converter = new SwaggerConvert();
+      
       return swagger;
     }
   }
