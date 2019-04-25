@@ -29,6 +29,8 @@ import io.swagger.models.Path;
 import io.swagger.models.Scheme;
 import io.swagger.models.Swagger;
 import io.swagger.models.parameters.Parameter;
+import io.swagger.v3.oas.models.OpenAPI;
+
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -136,15 +138,7 @@ public class Tab implements ITab {
     topPanel.add(filerPanel, gridBagConstraints);
 
     // scroll table
-    Object columns[] = {
-        "#",
-        "Method",
-        "Host",
-        "Protocol",
-        "Base Path",
-        "Endpoint",
-        "Param"
-    };
+    Object columns[] = { "#", "Method", "Host", "Protocol", "Base Path", "Endpoint", "Param" };
     Object rows[][] = {};
     this.table = new JTable(new DefaultTableModel(rows, columns) {
       @Override
@@ -157,9 +151,7 @@ public class Tab implements ITab {
       }
 
       @Override
-      public boolean isCellEditable(
-          int rows, int columns
-      ) {
+      public boolean isCellEditable(int rows, int columns) {
         return false;
       }
     });
@@ -197,9 +189,7 @@ public class Tab implements ITab {
     // enable column sorting
     this.table.setAutoCreateRowSorter(true);
     // enable table filtering
-    this.tableRowSorter = new TableRowSorter<>(
-        this.table.getModel()
-    );
+    this.tableRowSorter = new TableRowSorter<>(this.table.getModel());
     this.table.setRowSorter(tableRowSorter);
 
     // status panel
@@ -217,11 +207,9 @@ public class Tab implements ITab {
 
     if (this.resourceTextField.getText().isEmpty()) {
       JFileChooser fileChooser = new JFileChooser();
-      fileChooser.addChoosableFileFilter(
-          new FileNameExtensionFilter("Swagger JSON File (*.json)", "json"));
-      fileChooser.addChoosableFileFilter(
-          new FileNameExtensionFilter("Swagger YAML File (*.yml, *.yaml)", "yaml",
-              "yml"));
+      fileChooser.addChoosableFileFilter(new FileNameExtensionFilter("Swagger JSON File (*.json)", "json"));
+      fileChooser
+          .addChoosableFileFilter(new FileNameExtensionFilter("Swagger YAML File (*.yml, *.yaml)", "yaml", "yml"));
 
       if (fileChooser.showOpenDialog(this.rootPanel) == JFileChooser.APPROVE_OPTION) {
         File file = fileChooser.getSelectedFile();
@@ -239,21 +227,18 @@ public class Tab implements ITab {
     return this.table;
   }
 
-  public void printStatus(
-      String status, Color color
-  ) {
+  public void printStatus(String status, Color color) {
     this.statusLabel.setText(status);
     this.statusLabel.setForeground(color);
   }
 
-  public void populateTable(Swagger swagger) {
+  public void populateTable(OpenAPI openAPI) {
     DefaultTableModel defaultTableModel = (DefaultTableModel) this.table.getModel();
-    List<Scheme> schemes = swagger.getSchemes();
+    List<Scheme> schemes = openAPI.getSchemes();
 
     for (Scheme scheme : schemes) {
-      for (Map.Entry<String, Path> path : swagger.getPaths().entrySet()) {
-        for (Map.Entry<HttpMethod, Operation> operation : path.getValue().getOperationMap()
-            .entrySet()) {
+      for (Map.Entry<String, Path> path : openAPI.getPaths().entrySet()) {
+        for (Map.Entry<HttpMethod, Operation> operation : path.getValue().getOperationMap().entrySet()) {
           StringBuilder stringBuilder = new StringBuilder();
 
           for (Parameter parameter : operation.getValue().getParameters()) {
@@ -264,35 +249,14 @@ public class Tab implements ITab {
             stringBuilder.setLength(stringBuilder.length() - 2);
           }
 
-          this.httpRequestResponses.add(
-              new HttpRequestResponse(
-                  this.extensionHelper.getBurpExtensionHelpers().buildHttpService(
-                      swagger.getHost().split(":")[0],
-                      this.extensionHelper
-                          .getPort(
-                              swagger,
-                              scheme
-                          ),
-                      this.extensionHelper
-                          .isUseHttps(
-                              scheme)
-                  ),
-                  this.extensionHelper.isUseHttps(scheme),
-                  this.extensionHelper
-                      .buildRequest(swagger, path,
-                          operation
-                      )
-              ));
+          this.httpRequestResponses.add(new HttpRequestResponse(
+              this.extensionHelper.getBurpExtensionHelpers().buildHttpService(openAPI.getHost().split(":")[0],
+                  this.extensionHelper.getPort(openAPI, scheme), this.extensionHelper.isUseHttps(scheme)),
+              this.extensionHelper.isUseHttps(scheme), this.extensionHelper.buildRequest(openAPI, path, operation)));
 
-          defaultTableModel.addRow(new Object[]{
-              defaultTableModel.getRowCount(),
-              operation.getKey().toString(),
-              swagger.getHost().split(":")[0],
-              scheme.toValue().toUpperCase(),
-              swagger.getBasePath(),
-              path.getKey(),
-              stringBuilder.toString()
-          });
+          defaultTableModel.addRow(new Object[] { defaultTableModel.getRowCount(), operation.getKey().toString(),
+              openAPI.getHost().split(":")[0], scheme.toValue().toUpperCase(), openAPI.getBasePath(), path.getKey(),
+              stringBuilder.toString() });
         }
       }
     }
@@ -319,8 +283,8 @@ public class Tab implements ITab {
         String resource = getResource();
 
         try {
-          Swagger swagger = new Loader().process(resource);
-          populateTable(swagger);
+          OpenAPI openAPI = new Loader().process(resource);
+          populateTable(openAPI);
           printStatus(COPYRIGHT, Color.BLACK);
         } catch (Exception e1) {
           printStatus(e1.getMessage(), Color.RED);

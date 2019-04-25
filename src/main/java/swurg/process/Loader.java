@@ -19,7 +19,11 @@ package swurg.process;
 import com.google.common.base.Strings;
 import io.swagger.models.Swagger;
 import io.swagger.parser.SwaggerParser;
+import io.swagger.parser.util.SwaggerDeserializationResult;
+import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.parser.converter.SwaggerConverter;
+import io.swagger.v3.parser.core.models.ParseOptions;
+import io.swagger.v3.parser.core.models.SwaggerParseResult;
 
 import java.io.File;
 import java.net.MalformedURLException;
@@ -30,7 +34,7 @@ import org.apache.commons.collections4.MapUtils;
 
 public class Loader {
 
-  public Swagger process(String resource) {
+  public OpenAPI process(String resource) {
     if (Strings.isNullOrEmpty(resource)) {
       throw new IllegalArgumentException("No file or URL specified");
     }
@@ -53,10 +57,16 @@ public class Loader {
           String.format(
               "The OpenAPI specification contained in %s is ill formed and cannot be parsed",
               resource));
-    } else {
-      SwaggerConverter converter = new SwaggerConverter();
+    } else {      
       validateSpecification(swagger, resource);
-      return swagger;
+
+      SwaggerConverter converter = new SwaggerConverter();
+      ParseOptions parseOptions = new ParseOptions();
+      parseOptions.setResolve(false);
+      SwaggerDeserializationResult dResult = new SwaggerDeserializationResult();
+      dResult.setSwagger(swagger);
+      SwaggerParseResult pResult = converter.convert(dResult);
+      return pResult.getOpenAPI();
     }
   }
 
