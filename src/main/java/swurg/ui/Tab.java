@@ -250,35 +250,25 @@ public class Tab implements ITab {
           //stdout.println("Found operation:" + operation.getValue().toString());
           StringBuilder stringBuilder = new StringBuilder();
 
-          /*
-          stdout.println("Get parameters");
-
-          for (Parameter parameter : operation.getValue().getParameters()) {
-            stringBuilder.append(parameter.getName()).append(", ");
+          List<Parameter> parameters = operation.getValue().getParameters();
+          if (parameters != null) {
+            for (Parameter parameter : parameters) {
+              stringBuilder.append(parameter.getName()).append(", ");
+            }
           }
           
-          stdout.println("Parameter string built");
-          */
 
-          /*
           if (stringBuilder.length() > 0) {
             stringBuilder.setLength(stringBuilder.length() - 2);
           }
-          */
-          stdout.println("Parse URL!");
 
           URL url = new URL(server.getUrl());
-          stdout.println("URL Parsed");
 
-          /*
           this.httpRequestResponses.add(new HttpRequestResponse(
               this.extensionHelper.getBurpExtensionHelpers().buildHttpService(url.getHost(),
                   url.getPort(), true),
               true, null));
 
-
-          stdout.println("HTTP Response added!");
-          */
           
           defaultTableModel.addRow(new Object[] { defaultTableModel.getRowCount(), operation.getKey().toString(),
               url.getHost(), url.getProtocol().toUpperCase(), url.getPath(), path.getKey(),
