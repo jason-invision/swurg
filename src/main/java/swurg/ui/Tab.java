@@ -23,12 +23,17 @@ import burp.HttpRequestResponse;
 import burp.IBurpExtenderCallbacks;
 import burp.ITab;
 import com.google.common.base.Strings;
+
+import io.swagger.oas.inflector.examples.ExampleBuilder;
+import io.swagger.oas.inflector.examples.models.Example;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import io.swagger.v3.oas.models.parameters.Parameter;
+import io.swagger.v3.oas.models.parameters.RequestBody;
 import io.swagger.v3.oas.models.servers.Server;
+import io.swagger.v3.oas.models.media.MediaType;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -45,6 +50,7 @@ import java.io.PrintWriter;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.JButton;
@@ -142,7 +148,7 @@ public class Tab implements ITab {
     topPanel.add(filerPanel, gridBagConstraints);
 
     // scroll table
-    Object columns[] = { "#", "Method", "Host", "Protocol", "Base Path", "Endpoint", "Param" };
+    Object columns[] = { "#", "Method", "Host", "Protocol", "Base Path", "Endpoint", "Content-Type", "Param" };
     Object rows[][] = {};
     this.table = new JTable(new DefaultTableModel(rows, columns) {
       @Override
@@ -243,11 +249,8 @@ public class Tab implements ITab {
     PrintWriter stdout = new PrintWriter(callbacks.getStdout(), true);
     for (Server server : servers) {
       
-      //stdout.println("Founder server: " + server.toString());
       for (Map.Entry<String, PathItem> path : openAPI.getPaths().entrySet()) {
-        //stdout.println("Found path: " + path.getValue().toString());
         for (Map.Entry<HttpMethod, Operation> operation : path.getValue().readOperationsMap().entrySet()) {
-          //stdout.println("Found operation:" + operation.getValue().toString());
           StringBuilder stringBuilder = new StringBuilder();
 
           List<Parameter> parameters = operation.getValue().getParameters();
@@ -264,20 +267,35 @@ public class Tab implements ITab {
 
           URL url = new URL(server.getUrl());
 
-          this.httpRequestResponses.add(new HttpRequestResponse(
-              this.extensionHelper.getBurpExtensionHelpers().buildHttpService(url.getHost(),
-                  url.getPort(), true),
-              true, null));
+          int port = url.getPort();
+          if (port == -1) {
+            port = url.getDefaultPort();
+          }
 
-          
-          defaultTableModel.addRow(new Object[] { defaultTableModel.getRowCount(), operation.getKey().toString(),
-              url.getHost(), url.getProtocol().toUpperCase(), url.getPath(), path.getKey(),
-              stringBuilder.toString() });
-          stdout.println("Row added!");
-        }
+          RequestBody requestBody = operation.getValue().getRequestBody();
+          if (requestBody != null) {
+            LinkedHashMap<String, MediaType> requestBodyContent = requestBody.getContent();
+            if (requestBodyContent != null) {
+              for (Map.Entry<String, MediaType> content : requestBodyContent.entrySet()) {
+
+                Example example = ExampleBuilder.fromSchema(content.getValue().getSchema(), openAPI.getComponents().getSchemas());
+
+                this.httpRequestResponses.add(new HttpRequestResponse(
+                  this.extensionHelper.getBurpExtensionHelpers().buildHttpService(url.getHost(),
+                      port, port == 443 ? true : false),
+                  true, this.extensionHelper.buildRequest(url, path, operation, content.getKey(), example)));
+         
+                  defaultTableModel.addRow(new Object[] { defaultTableModel.getRowCount(), operation.getKey().toString(),
+                    url.getHost(), url.getProtocol().toUpperCase(), url.getPath(), path.getKey(), content.getKey(),
+                    stringBuilder.toString() });
+              }
+
+            }
+          }
       }
     }
   }
+}
 
   @Override
   public Component getUiComponent() {

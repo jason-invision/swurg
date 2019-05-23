@@ -16,111 +16,119 @@
 
 package swurg.utils;
 
-import burp.IBurpExtenderCallbacks;
-import burp.IExtensionHelpers;
-import io.swagger.models.HttpMethod;
-import io.swagger.models.Operation;
-import io.swagger.models.Path;
-import io.swagger.models.Scheme;
-import io.swagger.models.Swagger;
-import io.swagger.models.parameters.AbstractSerializableParameter;
-import io.swagger.models.parameters.Parameter;
+import java.io.PrintWriter;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.collections4.CollectionUtils;
+import java.util.Map.Entry;
+
+import com.fasterxml.jackson.databind.module.SimpleModule;
+
+import burp.IBurpExtenderCallbacks;
+import burp.IExtensionHelpers;
+import burp.IParameter;
+import io.swagger.oas.inflector.examples.ExampleBuilder;
+import io.swagger.oas.inflector.examples.XmlExampleSerializer;
+import io.swagger.oas.inflector.examples.models.Example;
+import io.swagger.oas.inflector.processors.JsonNodeExampleSerializer;
+import io.swagger.util.Json;
+import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.PathItem.HttpMethod;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.parameters.Parameter;
+import io.swagger.v3.oas.models.parameters.RequestBody;
+import io.swagger.v3.oas.models.responses.ApiResponse;
 
 public class ExtensionHelper {
 
   private IExtensionHelpers burpExtensionHelpers;
+  private IBurpExtenderCallbacks callbacks;
+  private PrintWriter stdout;
 
   public ExtensionHelper(IBurpExtenderCallbacks callbacks) {
     this.burpExtensionHelpers = callbacks.getHelpers();
+    this.callbacks = callbacks;
+    this.stdout = new PrintWriter(callbacks.getStdout(), true);
   }
 
   public IExtensionHelpers getBurpExtensionHelpers() {
     return this.burpExtensionHelpers;
   }
 
-  public int getPort(
-      Swagger swagger, Scheme scheme
-  ) {
-    int port;
-
-    if (swagger.getHost().split(":").length > 1) {
-      port = Integer.valueOf(swagger.getHost().split(":")[1]);
-    } else {
-      if (scheme.toValue().toUpperCase().equals("HTTPS")) {
-        port = 443;
-      } else {
-        port = 80;
-      }
-    }
-
-    return port;
-  }
-
-  public boolean isUseHttps(Scheme scheme) {
-    boolean useHttps;
-
-    useHttps = scheme.toValue().toUpperCase().equals("HTTPS") || scheme.toValue().toUpperCase()
-        .equals("WSS");
-
-    return useHttps;
-  }
-
-  private List<String> buildHeaders(
-      Swagger swagger, Map.Entry<String, Path> path, Map.Entry<HttpMethod, Operation> operation
-  ) {
+  private List<String> buildHeaders(URL url, Map.Entry<String, PathItem> path,
+      Map.Entry<HttpMethod, Operation> operation, String contentType) {
     List<String> headers = new ArrayList<>();
 
-    headers.add(
-        operation.getKey().toString() + " " + swagger.getBasePath() + path.getKey() + " HTTP/1.1");
-    headers.add("Host: " + swagger.getHost().split(":")[0]);
+    headers.add(operation.getKey().toString() + " " + url.getPath() + path.getKey() + " HTTP/1.1");
+    headers.add("Host: " + url.getHost());
+    headers.add("Content-Type: " + contentType);
 
-    if (CollectionUtils.isNotEmpty(operation.getValue().getProduces())) {
-      headers.add("Accept: " + String.join(",", operation.getValue().getProduces()));
-    } else if (CollectionUtils.isNotEmpty(swagger.getProduces())) {
-      headers.add("Accept: " + String.join(",", swagger.getProduces()));
-    }
-
-    if (CollectionUtils.isNotEmpty(operation.getValue().getConsumes())) {
-      headers.add("Content-Type: " + String.join(",", operation.getValue().getConsumes()));
-    } else if (CollectionUtils.isNotEmpty(swagger.getConsumes())) {
-      headers.add("Content-Type: " + String.join(",", swagger.getConsumes()));
+    LinkedHashMap<String, ApiResponse> responses = operation.getValue().getResponses();
+    if(responses != null) {
+      StringBuilder sb = new StringBuilder("Accept: ");
+      for (ApiResponse response : responses.values()) {
+        Content content = response.getContent();
+        if (content != null) {
+          sb.append(String.join(",", content.keySet()));
+          //headers.add("Accept: " + String.join(",", content.keySet()));
+        }
+      }
+      if(sb.length() > 9) {
+        headers.add(sb.toString());
+      }
     }
 
     return headers;
   }
 
   public byte[] buildRequest(
-      Swagger swagger, Map.Entry<String, Path> path, Map.Entry<HttpMethod, Operation> operation
+      URL url, Map.Entry<String, PathItem> path, Map.Entry<HttpMethod, Operation>  operation, String contentType, Example example
   ) {
-    List<String> headers = buildHeaders(swagger, path, operation);
-    byte[] httpMessage = this.burpExtensionHelpers.buildHttpMessage(headers, null);
+    List<String> headers = buildHeaders(url, path, operation, contentType);
+    String body = new String();
 
-    for (Parameter parameter : operation.getValue().getParameters()) {
-      String type;
+    if(contentType.equals("application/json")) {
+      SimpleModule simpleModule = new SimpleModule().addSerializer(new JsonNodeExampleSerializer());
+      Json.mapper().registerModule(simpleModule);
+      body = Json.pretty(example);
+    } else if(contentType.equals("application/xml")) {
+      body = new XmlExampleSerializer().serialize(example);
+    }
 
-      if (parameter instanceof AbstractSerializableParameter) {
-        AbstractSerializableParameter abstractSerializableParameter = (AbstractSerializableParameter) parameter;
-        type = abstractSerializableParameter.getType();
-      } else {
-        type = "not-accessible";
-      }
+    byte[] httpMessage = this.burpExtensionHelpers.buildHttpMessage(headers, body.getBytes());
 
-      switch (parameter.getIn()) {
-        case "body":
-          httpMessage = this.burpExtensionHelpers
-              .addParameter(httpMessage, this.burpExtensionHelpers
-                  .buildParameter(parameter.getName(), type, (byte) 1));
-        case "query":
-          httpMessage = this.burpExtensionHelpers
-              .addParameter(httpMessage, this.burpExtensionHelpers
-                  .buildParameter(parameter.getName(), type, (byte) 0));
-      }
+    List<Parameter> parameters = operation.getValue().getParameters();
+    if (parameters != null) {
+      for (Parameter parameter : parameters) {
+
+        String in = parameter.getIn();
+        if (in != null) {
+          Schema schema = parameter.getSchema();
+          if (schema != null) {
+            switch (in) {
+              case "body":
+                httpMessage = this.burpExtensionHelpers
+                    .addParameter(httpMessage, this.burpExtensionHelpers
+                        .buildParameter(parameter.getName(), parameter.getSchema().getType(), IParameter.PARAM_BODY));
+              case "query":
+                httpMessage = this.burpExtensionHelpers
+                    .addParameter(httpMessage, this.burpExtensionHelpers
+                    .buildParameter(parameter.getName(), parameter.getSchema().getType(), IParameter.PARAM_URL));
+                  }
+            }
+          }
+  
+        }
     }
 
     return httpMessage;
   }
+
 }
